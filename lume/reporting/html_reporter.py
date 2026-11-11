@@ -36,6 +36,16 @@ class HTMLReporter:
                           f"<p><b>HTTP status:</b> {e(status_code_str)}</p>"
                           f"{patterns_html}"
                           "</details>")
+            if getattr(v, "findings", None):
+                frows = "".join(
+                    f"<tr><td>{i}</td><td>{e(f.payload[:120])}</td><td>{e(str(f.status_code if f.status_code is not None else ''))}</td>"
+                    f"<td>{e(', '.join(f.matched_patterns) or 'none')}</td></tr>"
+                    for i, f in enumerate(v.findings, start=1)
+                )
+                detail += ("<details><summary>All probes</summary><table><tr><th>#</th><th>Payload</th><th>HTTP</th><th>Leaked</th></tr>"
+                           + frows + "</table></details>")
+            if getattr(v, "notes", None):
+                detail = f"<p><b>Summary:</b> {e(v.notes)}</p>" + detail
             recommendation = e(v.recommendation or "No remediation provided")
             status_val = v.status.value if hasattr(v.status, "value") else str(v.status)
             sev_val = v.severity.value if hasattr(v.severity, "value") else str(v.severity)

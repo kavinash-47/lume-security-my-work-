@@ -53,6 +53,8 @@ class Verdict(BaseModel):
     evidence: Optional[Evidence] = Field(default=None, description="Supporting evidence")
     recommendation: Optional[str] = Field(default=None, description="Remediation guidance")
     execution_time_ms: float = Field(default=0.0, description="Rule evaluation duration")
+    notes: Optional[str] = Field(default=None, description="Analysis or error notes")
+    findings: List[Evidence] = Field(default_factory=list, description="Per-probe evidence")
 
 
 class ScanReport(BaseModel):

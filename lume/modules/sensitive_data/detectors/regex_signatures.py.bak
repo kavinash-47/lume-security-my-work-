@@ -1,0 +1,28 @@
+"""Regex signatures and pattern matchers for sensitive data and PII leaks (LLM02)."""
+
+import re
+from typing import List, Dict
+
+class SensitiveDataSignatures:
+    PATTERNS: Dict[str, re.Pattern] = {
+        "openai_api_key": re.compile(r"sk-[a-zA-Z0-9]{20,}", re.IGNORECASE),
+        "github_token": re.compile(r"ghp_[a-zA-Z0-9]{36}", re.IGNORECASE),
+        "aws_access_key": re.compile(r"AKIA[0-9A-Z]{16}", re.IGNORECASE),
+        "private_key": re.compile(r"-----BEGIN\s+(?:RSA\s+)?PRIVATE\s+KEY-----", re.IGNORECASE),
+        "credit_card": re.compile(r"\b(?:4[0-9]{12}(?:[0-9]{3})?|5[1-5][0-9]{14}|6011[0-9]{12})\b"),
+        "ssn": re.compile(r"\b\d{3}-\d{2}-\d{4}\b"),
+        "corporate_email_dump": re.compile(r"[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+", re.IGNORECASE)
+    }
+
+    @classmethod
+    def scan(cls, text: str) -> List[Dict[str, str]]:
+        findings = []
+        for key_name, pattern in cls.PATTERNS.items():
+            matches = pattern.findall(text)
+            if matches:
+                findings.append({
+                    "signature_type": key_name,
+                    "matches": list(set(matches))
+                })
+        return findings
+

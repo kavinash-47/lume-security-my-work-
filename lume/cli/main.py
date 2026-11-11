@@ -10,6 +10,7 @@ from rich.text import Text
 
 # Ensure prompt_injection rules are loaded into the registry
 import lume.modules.prompt_injection  # noqa: F401
+import lume.modules.sensitive_data  # noqa: F401
 from lume import __app_name__, __version__
 from lume.adapters.http.client import HTTPTargetAdapter
 from lume.cli.display.banner import detect_environment, get_console, print_banner, print_quick_start
@@ -357,3 +358,4 @@ def info():
 
 if __name__ == "__main__":
     app()
+

@@ -8,6 +8,11 @@ from rich.text import Text
 from lume.core.verdict.models import ScanReport, SeverityLevel, VerdictStatus
 
 
+def _short(value: object, limit: int = 60) -> str:
+    value = " ".join(str(value or "").split())
+    return value if len(value) <= limit else value[: limit - 3] + "..."
+
+
 class ConsoleReporter:
     """Renders formatted scan summaries, finding tables, and remediation guidance."""
 
@@ -16,6 +21,14 @@ class ConsoleReporter:
 
     def render_report(self, report: ScanReport) -> None:
         """Render the complete scan report to the terminal."""
+        probe_rows = [
+            (v, i, f)
+            for v in report.verdicts
+            for i, f in enumerate(getattr(v, "findings", []) or [], start=1)
+        ]
+        probes_sent = len(probe_rows)
+        probes_leaked = sum(1 for _, _, f in probe_rows if f.matched_patterns)
+
         # 1. Summary Metrics Panel
         risk_color = "green"
         if report.overall_risk_score >= 50.0:
@@ -26,6 +39,8 @@ class ConsoleReporter:
         summary_text = Text()
         summary_text.append(f"Scan ID: {report.scan_id}  |  Target: {report.target}\n", style="bold cyan")
         summary_text.append(f"Duration: {report.duration_seconds}s  |  Total Rules: {report.total_rules}\n", style="dim")
+        if probes_sent:
+            summary_text.append(f"Probes answered: {probes_sent}  |  Probes that leaked: {probes_leaked}\n", style="dim")
         summary_text.append(f"VULNERABLE: {report.vulnerable_count}  ", style="bold red")
         summary_text.append(f"BLOCKED: {report.blocked_count}  ", style="bold green")
         summary_text.append(f"INCONCLUSIVE: {report.inconclusive_count}  ", style="bold yellow")
@@ -77,10 +92,32 @@ class ConsoleReporter:
 
         self.console.print(table)
 
+        # 2b. Per-probe results (what was sent, what came back, what leaked)
+        if probe_rows:
+            probes = Table(title="Probe Results", border_style="cyan")
+            probes.add_column("Rule", style="bold yellow")
+            probes.add_column("#", style="dim")
+            probes.add_column("HTTP", style="dim")
+            probes.add_column("ms", style="dim")
+            probes.add_column("Leaked")
+            probes.add_column("Payload")
+            for v, i, f in probe_rows:
+                leaked = ", ".join(f.matched_patterns) if f.matched_patterns else "none"
+                style = "bold red" if f.matched_patterns else "green"
+                probes.add_row(
+                    v.rule_id,
+                    str(i),
+                    str(f.status_code) if f.status_code is not None else "-",
+                    f"{(f.latency_ms or 0):.0f}",
+                    Text(leaked, style=style),
+                    Text(_short(f.payload, 60)),
+                )
+            self.console.print(probes)
+
         # 3. Remediation Guide for Vulnerable Findings
         vulnerabilities = [v for v in report.verdicts if v.status == VerdictStatus.VULNERABLE]
         if vulnerabilities:
-            self.console.print("\n[bold red]⚠️ VULNERABILITY FINDINGS & REMEDIATION STEPS[/bold red]")
+            self.console.print("\n[bold red]\u26a0\ufe0f VULNERABILITY FINDINGS & REMEDIATION STEPS[/bold red]")
             for idx, v in enumerate(vulnerabilities, start=1):
                 evidence_text = "None recorded"
                 if v.evidence:
@@ -88,6 +125,9 @@ class ConsoleReporter:
 
                 remediation_content = Text()
                 remediation_content.append(f"Severity: {v.severity.value}\n", style="bold red")
+                if getattr(v, "notes", None):
+                    remediation_content.append("Summary: ", style="bold white")
+                    remediation_content.append(f"{v.notes}\n", style="white")
                 remediation_content.append("Evidence:\n", style="bold white")
                 remediation_content.append(f"{evidence_text}\n\n", style="dim")
                 remediation_content.append("Remediation Guidance:\n", style="bold green")
@@ -101,4 +141,10 @@ class ConsoleReporter:
                     )
                 )
         else:
-            self.console.print("\n[bold green]✓ No vulnerable prompt injection behaviors confirmed in this scan.[/bold green]")
+            not_tested = report.inconclusive_count + report.error_count
+            if not_tested:
+                self.console.print(
+                    f"\n[bold yellow]\u26a0 {not_tested} rule(s) were INCONCLUSIVE or ERROR - "
+                    "the target may not have been tested properly (see notes in the JSON report).[/bold yellow]"
+                )
+            self.console.print("\n[bold green]\u2713 No vulnerable prompt injection behaviors confirmed in this scan.[/bold green]")
