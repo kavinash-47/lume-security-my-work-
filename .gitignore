@@ -51,3 +51,13 @@ reports/*.md
 .vscode/
 .idea/
 *.swp
+
+# local scratch files
+*.bak
+*.bak2
+*.bak3
+lume-info.txt
+lume-files.txt
+redaction-info.txt
+reporting-info.txt
+adapter-info.txt
